@@ -40,6 +40,9 @@ class Ui_Form(object):
         self.pushButton_1 = QtWidgets.QPushButton(Form)
         self.pushButton_1.setObjectName("pushButton_1")
         self.verticalLayout.addWidget(self.pushButton_1)
+        self.pushButton_2 = QtWidgets.QPushButton(Form)
+        self.pushButton_2.setObjectName("pushButton_2")
+        self.verticalLayout.addWidget(self.pushButton_2)
 
         self.retranslateUi(Form)
         QtCore.QMetaObject.connectSlotsByName(Form)
@@ -52,5 +55,4 @@ class Ui_Form(object):
         self.label_1.setText(_translate("Form", "执行结果"))
         self.pushButton.setText(_translate("Form", "批量备份"))
         self.pushButton_1.setText(_translate("Form", "批量改密码"))
-
-    
+        self.pushButton_2.setText(_translate("Form", "查找透明端口"))
