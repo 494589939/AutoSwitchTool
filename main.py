@@ -21,18 +21,66 @@ def backup():
     switch_cmd(cmd)
 
 
+# 1.查看透明端口
+def mac_authentication():
+    ip_info = ''
+    cmd = """
+        screen-length dis \n
+        dis cu int \n
+        """
+    # 清空ui.textBrowser文本内容
+    ui.textBrowser.clear()
+    # 获取tftp地址需要先打开tftp64软件
+    tftp_ip = ui.lineEdit.text()
+    # 调用openfile函数获取交换机信息与行数
+    switch_lists, total_rows = openfile()
+
+    # 对交换机信息与行数进行判断如果为空就判断为告警
+    if switch_lists is None:
+        ui.textBrowser.setText(str("文件未上传或上传识别失败请检查EXCEL！"))
+    else:
+        # 根据获取的行数减去开通一行生成进度条最大值
+        ui.progressBar.setRange(0, total_rows - 1)
+        # 打印需要执行的数量
+        ui.textBrowser.append("合计交换机数量:" + str(total_rows - 1))
+        for ip, port, user, old_pwd, new_pwd, su_pwd in switch_lists:
+            try:
+                new_cmd = cmd.format(tftp_ip=tftp_ip, ip=ip, port=port, user=user, old_pwd=old_pwd, new_pwd=new_pwd)
+                outputs = ssh_h3c(ip, port, user, old_pwd, new_pwd, new_cmd, su_pwd)
+                # 显示文本清洗数据
+                for i in str(outputs).split("#"):
+                    if 'mac-authentication' in i:
+                        for s in i.split('\n'):
+                            if 'GigabitEthernet' in s:
+                                ip_info = ip_info + ip + ' ' + s + '\n'
+                ui.textBrowser.append(ip_info)
+                outcome = ("++" + ip + '执行成功！')
+            except Exception as e:
+                # 打印结果并跳过此次执行
+                print(e)
+                outcome = ("--" + ip + '执行失败:' + str(e))
+                continue
+            finally:
+                # 不论结果如何都更新进度条
+                ui.progressBar.setValue(ui.progressBar.value() + 1)
+                # 将结果打印至UI
+                ui.textBrowser.append(str(outcome))
+                # 刷新UI编辑框
+                qt_app.processEvents()
+
+
 # 0.改密码命令
 def change_passwd():
+    # su切换用户时pwd一定要注意字符串的空格
     cmd = """
-        system-view\n
-        local-user {user} class manage\n
-        password simple {new_pwd}\n
-        quit\n
-        save\n
-        y\n
-        n\n
-        y\n
-        """
+su\n
+{su_pwd}\n
+system-view\n
+local-user {user} class manage\n
+password simple {new_pwd}\n
+quit\n
+save force\n
+"""
     switch_cmd(cmd)
 
 
@@ -49,7 +97,7 @@ def openfile():
         # 打开表一
         sht = wb.sheets[0]
         total_rows = len_rows(wb, sht)
-        rng = sht.range('A{0}:E{1}'.format(2, total_rows)).value
+        rng = sht.range('A{0}:F{1}'.format(2, total_rows)).value
         wb.save()
         # 关闭
         wb.close()
@@ -88,13 +136,15 @@ def switch_cmd(cmd):
         ui.progressBar.setRange(0, total_rows - 1)
         # 打印需要执行的数量
         ui.textBrowser.append("合计交换机数量:" + str(total_rows - 1))
-        for ip, port, user, old_pwd, new_pwd in switch_lists:
+        for ip, port, user, old_pwd, new_pwd, su_pwd in switch_lists:
             try:
-                new_cmd = cmd.format(tftp_ip=tftp_ip, ip=ip, port=port, user=user, old_pwd=old_pwd, new_pwd=new_pwd)
-                ssh_h3c(ip, port, user, old_pwd, new_pwd, new_cmd)
+                new_cmd = cmd.format(tftp_ip=tftp_ip, ip=ip, port=port, user=user, old_pwd=old_pwd, new_pwd=new_pwd,
+                                     su_pwd=su_pwd)
+                ssh_h3c(ip, port, user, old_pwd, new_pwd, new_cmd, su_pwd)
                 outcome = ("++" + ip + '执行成功！')
             except Exception as e:
                 # 打印结果并跳过此次执行
+                print(e)
                 outcome = ("--" + ip + '执行失败:' + str(e))
                 continue
             finally:
@@ -107,7 +157,7 @@ def switch_cmd(cmd):
 
 
 # 4.发送交换机命令并连接ssh执行
-def ssh_h3c(ip, port, user, old_pwd, new_pwd, cmd):
+def ssh_h3c(ip, port, user, old_pwd, new_pwd, new_cmd, su_pwd):
     # 创建ssh连接
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -116,22 +166,21 @@ def ssh_h3c(ip, port, user, old_pwd, new_pwd, cmd):
 
     # 发送命令
     command = ssh.invoke_shell()
-    command.send(cmd)
+    command.send(new_cmd)
     # 必须设置等待时间
     sleep(2)
 
     # # 解析为UTF-8编码
-    # output = command.recv(65535).decode('UTF-8')
+    output = command.recv(65535).decode('UTF-8')
     # # 显示文本
     # ui.textBrowser.setText(str(output))
 
     # 关闭连接
     ssh.close()
+    return output
 
 
 if __name__ == '__main__':
-    # 0意思是每次调用前重置APP对象，防止内核崩溃
-    qt_app = 0
     qt_app = QApplication(sys.argv)
     MainWindow = QWidget()
     ui = Ui_Form()
@@ -140,5 +189,5 @@ if __name__ == '__main__':
     # 开始制作ui的接口
     ui.pushButton.clicked.connect(backup)
     ui.pushButton_1.clicked.connect(change_passwd)
-    # 无垃圾退出
+    ui.pushButton_2.clicked.connect(mac_authentication)
     sys.exit(qt_app.exec_())
