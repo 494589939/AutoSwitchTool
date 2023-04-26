@@ -30,8 +30,6 @@ def mac_authentication():
         """
     # 清空ui.textBrowser文本内容
     ui.textBrowser.clear()
-    # 获取tftp地址需要先打开tftp64软件
-    tftp_ip = ui.lineEdit.text()
     # 调用openfile函数获取交换机信息与行数
     switch_lists, total_rows = openfile()
 
@@ -45,8 +43,8 @@ def mac_authentication():
         ui.textBrowser.append("合计交换机数量:" + str(total_rows - 1))
         for ip, port, user, old_pwd, new_pwd, su_pwd in switch_lists:
             try:
-                new_cmd = cmd.format(tftp_ip=tftp_ip, ip=ip, port=port, user=user, old_pwd=old_pwd, new_pwd=new_pwd)
-                outputs = ssh_h3c(ip, port, user, old_pwd, new_pwd, new_cmd, su_pwd)
+                # new_cmd = cmd.format(tftp_ip=None, ip=ip, port=port, user=None, old_pwd=None, new_pwd=None)
+                outputs = ssh_h3c(ip, port, user, old_pwd, new_pwd, cmd, su_pwd)
                 # 显示文本清洗数据
                 for i in str(outputs).split("#"):
                     if 'mac-authentication' in i:
@@ -97,7 +95,11 @@ def openfile():
         # 打开表一
         sht = wb.sheets[0]
         total_rows = len_rows(wb, sht)
-        rng = sht.range('A{0}:F{1}'.format(2, total_rows)).value
+        # 如果实际数据只要一行数就将列表再包一层
+        if total_rows == 2:
+            rng = [sht.range('A{0}:F{1}'.format(2, total_rows)).value]
+        else:
+            rng = sht.range('A{0}:F{1}'.format(2, total_rows)).value
         wb.save()
         # 关闭
         wb.close()
@@ -136,6 +138,7 @@ def switch_cmd(cmd):
         ui.progressBar.setRange(0, total_rows - 1)
         # 打印需要执行的数量
         ui.textBrowser.append("合计交换机数量:" + str(total_rows - 1))
+        # print(switch_lists)
         for ip, port, user, old_pwd, new_pwd, su_pwd in switch_lists:
             try:
                 new_cmd = cmd.format(tftp_ip=tftp_ip, ip=ip, port=port, user=user, old_pwd=old_pwd, new_pwd=new_pwd,
